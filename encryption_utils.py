@@ -245,6 +245,14 @@ def list_dump_files(base_dir: Path) -> list[Path]:
     return sorted(base_dir.glob("*.dump"))
 
 
+def list_encryptable_files(base_dir: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in base_dir.iterdir()
+        if path.is_file() and not path.name.startswith(".") and path.suffix.lower() != ".enc"
+    )
+
+
 def list_encrypted_files(base_dir: Path) -> list[Path]:
     return sorted(base_dir.glob("*.enc"))
 

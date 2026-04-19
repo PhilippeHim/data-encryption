@@ -15,7 +15,7 @@ from encryption_utils import (
     generate_ecc_key_pair,
     generate_rsa_key_pair,
     generate_self_signed_certificate,
-    list_dump_files,
+    list_encryptable_files,
     list_encrypted_files,
     list_managed_key_bundles,
     load_transaction_history,
@@ -177,14 +177,14 @@ def _render_step_inline(step_number: int, title: str, action: str, effect: str) 
     st.caption(f"Ce que cela fera : {effect}")
 
 
-def _render_sidebar_step_one(has_dump_files: bool, has_encrypted_files: bool) -> None:
+def _render_sidebar_step_one(has_source_files: bool, has_encrypted_files: bool) -> None:
     st.markdown("### Étape 1")
     st.markdown("**Choisir un fichier**")
-    st.caption("Que faire : sélectionner dans cette barre latérale un `.dump` pour chiffrer ou un `.enc` pour déchiffrer.")
+    st.caption("Que faire : sélectionner dans cette barre latérale un fichier source à chiffrer ou un `.enc` à déchiffrer.")
     st.caption("Ce que cela fera : l'application saura quel contenu afficher et quelle suite d'étapes proposer.")
 
-    if not has_dump_files:
-        st.info("Aucun fichier `.dump` dans ce dossier pour le moment.")
+    if not has_source_files:
+        st.info("Aucun fichier source à chiffrer dans ce dossier pour le moment.")
     if not has_encrypted_files:
         st.info("Aucun fichier `.enc` dans ce dossier pour le moment.")
 
@@ -479,7 +479,7 @@ def _render_key_management() -> None:
 def _symmetric_tab(source_path: Path | None) -> None:
     st.subheader("Chiffrement symétrique")
     if source_path is None:
-        st.warning("Aucun fichier `.dump` disponible dans ce dossier pour le chiffrement.")
+        st.warning("Aucun fichier source disponible dans ce dossier pour le chiffrement.")
         return
 
     st.markdown("Le chiffrement symétrique utilise un même secret pour chiffrer et déchiffrer.")
@@ -533,7 +533,7 @@ def _symmetric_tab(source_path: Path | None) -> None:
 def _asymmetric_tab(source_path: Path | None) -> None:
     st.subheader("Chiffrement asymétrique")
     if source_path is None:
-        st.warning("Aucun fichier `.dump` disponible dans ce dossier pour le chiffrement.")
+        st.warning("Aucun fichier source disponible dans ce dossier pour le chiffrement.")
         return
 
     st.markdown("Le chiffrement asymétrique repose sur une paire de clés : une clé publique pour chiffrer et une clé privée pour déchiffrer.")
@@ -603,7 +603,7 @@ def _asymmetric_tab(source_path: Path | None) -> None:
         if uploaded_key is not None:
             key_material = uploaded_key.getvalue()
 
-    st.info("Le fichier chiffré sera écrit dans le même répertoire que le dump source. La clé privée correspondante sera nécessaire pour le déchiffrement.")
+    st.info("Le fichier chiffré sera écrit dans le même répertoire que le fichier source. La clé privée correspondante sera nécessaire pour le déchiffrement.")
 
     _render_step_inline(
         4,
@@ -769,6 +769,10 @@ def main() -> None:
     st.write("Cette interface sert de support d'apprentissage : elle t'accompagne pour chiffrer, déchiffrer et comprendre ce que fait chaque étape.")
 
     available_directories = _list_available_directories(PROJECT_DIR)
+    selected_dump_path = None
+    selected_encrypted_path = None
+    has_compatible_files = False
+    selected_directory = PROJECT_DIR
     with st.sidebar:
         st.header("Sélection")
         if st.button("Rafraîchir la liste", use_container_width=True):
@@ -782,25 +786,24 @@ def main() -> None:
             format_func=lambda path: str(path.relative_to(PROJECT_DIR)) if path != PROJECT_DIR else ".",
         )
 
-        dump_files = list_dump_files(selected_directory)
+        source_files = list_encryptable_files(selected_directory)
         encrypted_files = list_encrypted_files(selected_directory)
-        _render_sidebar_step_one(bool(dump_files), bool(encrypted_files))
+        has_compatible_files = bool(source_files or encrypted_files)
+        _render_sidebar_step_one(bool(source_files), bool(encrypted_files))
 
-        if not dump_files and not encrypted_files:
-            st.warning(f"Aucun fichier `.dump` ou `.enc` n'a été trouvé dans le dossier `{selected_directory}`.")
-            return
+        if not has_compatible_files:
+            relative_directory = str(selected_directory.relative_to(PROJECT_DIR)) if selected_directory != PROJECT_DIR else "."
+            st.warning(f"Aucun fichier source ni fichier `.enc` dans `{relative_directory}`.")
 
-        selected_dump_path = None
-        if dump_files:
+        if source_files:
             selected_dump_path = st.selectbox(
-                "Fichier source pour chiffrement",
-                dump_files,
+                "Fichier source à chiffrer",
+                source_files,
                 format_func=lambda path: f"{path.name} ({_format_size(path.stat().st_size)})",
             )
         else:
-            st.caption("Aucun fichier `.dump` dans ce dossier.")
+            st.caption("Aucun fichier source à chiffrer dans ce dossier.")
 
-        selected_encrypted_path = None
         if encrypted_files:
             selected_encrypted_path = st.selectbox(
                 "Fichier chiffré pour déchiffrement",
@@ -809,6 +812,17 @@ def main() -> None:
             )
         else:
             st.caption("Aucun fichier `.enc` dans ce dossier.")
+
+    if not has_compatible_files:
+        relative_directory = str(selected_directory.relative_to(PROJECT_DIR)) if selected_directory != PROJECT_DIR else "."
+        st.info(
+            f"Aucun fichier compatible n'est disponible dans `{relative_directory}`. "
+            "Choisis un autre dossier dans la barre latérale pour continuer."
+        )
+        st.caption("Formats attendus : n'importe quel fichier source pour le chiffrement et `.enc` pour le déchiffrement.")
+        st.divider()
+        _render_history()
+        return
 
     symmetric_tab, asymmetric_tab, decryption_tab = st.tabs(["Symétrique", "Asymétrique", "Déchiffrement"])
     with symmetric_tab:

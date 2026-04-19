@@ -80,12 +80,39 @@ Autrement dit, le notebook produit les fichiers à manipuler, le module Python a
 
 ### `chiffrement_donnees.ipynb`
 
-Ce notebook joue le rôle de laboratoire de manipulation PostgreSQL.
+Ce notebook permet l'export de dumps d'une base de donnée PostgreSQL.
 
 Il contient des cellules destinées à :
 - créer une sauvegarde complète de la base `cours_securite` dans le dossier `backups/` ;
 - exporter les tables de la base au format CSV dans `csv_exports/` ;
 - produire des artefacts concrets qui pourront ensuite être chiffrés.
+
+Structure du schéma "cours_securite" :
+
+cours_securite=# \dn
+        List of schemas
+    Name    |       Owner       
+------------+-------------------
+ production | philippe
+ public     | pg_database_owner
+ research   | philippe
+(3 rows)
+
+cours_securite=# \dt production.*
+              List of relations
+   Schema   |     Name     | Type  |  Owner   
+------------+--------------+-------+----------
+ production | clients      | table | philippe
+ production | transactions | table | philippe
+(2 rows)
+
+cours_securite=# \dt research.*
+              List of relations
+  Schema  |     Name      | Type  |  Owner   
+----------+---------------+-------+----------
+ research | algos_trading | table | philippe
+(1 row)
+
 
 Son rôle dans l'ensemble du projet est donc de préparer les données sources. Il intervient en amont du chiffrement.
 
@@ -106,14 +133,14 @@ En pratique, ce module prend un fichier source, applique l'algorithme choisi, pu
 
 Ce fichier constitue l'interface utilisateur du projet.
 
-Son rôle n'est pas d'implémenter les algorithmes, mais d'orchestrer leur utilisation :
+Son rôle est d'orchestrer l'utilisation des algorithmes de chiffrement :
 - il affiche les dossiers disponibles ;
 - il permet de choisir un dossier, puis un fichier `.dump` ;
 - il propose un onglet pour le chiffrement symétrique ;
 - il propose un onglet pour le chiffrement asymétrique ;
 - il transmet les paramètres choisis aux fonctions définies dans `encryption_utils.py`.
 
-L'application agit donc comme une couche de pilotage au-dessus du moteur de chiffrement.
+L'application le pilotage des différents moteurs de chiffrement.
 
 ### `environment.yml`
 
@@ -220,6 +247,44 @@ Le projet s'appuie notamment sur :
 - `streamlit`
 - `pandas`
 - `jupyterlab`
+
+## Compatibilité Python et bibliothèques
+
+Le projet a été préparé pour fonctionner avec une version récente de Python, en particulier Python `3.13`.
+
+Ce point mérite d'être signalé car toutes les bibliothèques de chiffrement ne sont pas toujours immédiatement compatibles avec les versions les plus récentes du langage.
+
+### Problème rencontré
+
+Lors de l'implémentation de l'algorithme `Twofish`, un problème de compatibilité est apparu avec la bibliothèque `twofish`.
+
+Le paquet installé contenait bien son extension compilée, mais son module Python principal utilisait `imp`, un ancien module de la bibliothèque standard supprimé dans les versions modernes de Python.
+
+En pratique :
+- l'import classique du paquet `twofish` échouait sous Python `3.13` ;
+- l'algorithme ne pouvait donc pas être utilisé directement via son interface Python standard ;
+- le coeur compilé de la bibliothèque restait pourtant présent et exploitable.
+
+### Solution mise en place
+
+Pour conserver `Twofish` dans le projet sans revenir à une version plus ancienne de Python, une adaptation a été faite dans [encryption_utils.py](./encryption_utils.py) :
+- le projet n'utilise pas le wrapper Python cassé fourni par le paquet ;
+- il charge directement le module binaire `_twofish` ;
+- les fonctions natives sont appelées avec `ctypes` ;
+- la localisation du module compilé est résolue avec `importlib.util.find_spec`.
+
+Cette solution permet :
+- de garder Python `3.13` comme base de travail ;
+- de conserver l'algorithme `Twofish` dans l'application ;
+- d'éviter qu'une dépendance partiellement obsolète bloque tout le projet.
+
+### Ce que cela montre
+
+Ce cas illustre une idée importante dans un projet de sécurité :
+- un algorithme peut rester pertinent sur le plan théorique ;
+- mais son implémentation logicielle peut devenir fragile si la bibliothèque n'est plus maintenue au même rythme que Python.
+
+Autrement dit, la robustesse d'un projet dépend non seulement des algorithmes choisis, mais aussi de la compatibilité réelle des bibliothèques qui les implémentent.
 
 ## Points pédagogiques importants
 

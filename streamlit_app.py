@@ -7,20 +7,20 @@ import pandas as pd
 import streamlit as st
 
 from encryption_utils import (
-    delete_managed_key_bundle,
-    decrypt_asymmetric_file,
-    decrypt_symmetric_file,
-    encrypt_asymmetric_file,
-    encrypt_symmetric_file,
-    generate_ecc_key_pair,
-    generate_rsa_key_pair,
-    generate_self_signed_certificate,
-    list_encryptable_files,
-    list_encrypted_files,
-    list_managed_key_bundles,
-    load_transaction_history,
-    load_key_material,
-    inspect_encrypted_file,
+    charger_historique_transactions,
+    charger_materiel_cryptographique,
+    chiffrer_fichier_asymetrique,
+    chiffrer_fichier_symetrique,
+    dechiffrer_fichier_asymetrique,
+    dechiffrer_fichier_symetrique,
+    generer_certificat_autosigne,
+    generer_paire_cles_ecc,
+    generer_paire_cles_rsa,
+    inspecter_fichier_chiffre,
+    lister_fichiers_chiffrables,
+    lister_fichiers_chiffres,
+    lister_jeux_cles,
+    supprimer_jeu_cles,
 )
 
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -235,7 +235,7 @@ def _format_operation(operation: str) -> str:
 
 def _render_history() -> None:
     st.subheader("Historique des transactions")
-    entries = load_transaction_history(limit=50)
+    entries = charger_historique_transactions(limit=50)
 
     if not entries:
         st.info("Aucune transaction enregistrée pour le moment.")
@@ -273,7 +273,7 @@ def _bundle_summary(bundle: dict[str, object]) -> str:
 
 
 def _get_compatible_bundles(algorithm: str) -> list[dict[str, object]]:
-    bundles = list_managed_key_bundles()
+    bundles = lister_jeux_cles()
     if algorithm == "Infrastructure a cle publique (ICP)":
         return [bundle for bundle in bundles if bundle.get("kind") == "certificate"]
 
@@ -326,7 +326,7 @@ def _render_bundle_downloads(bundle: dict[str, object]) -> None:
 
         path_obj = Path(file_path)
         try:
-            file_data = load_key_material(path_obj)
+            file_data = charger_materiel_cryptographique(path_obj)
         except Exception as exc:
             st.warning(f"Lecture impossible pour `{path_obj.name}` : {exc}")
             continue
@@ -397,13 +397,13 @@ def _get_compatible_private_bundles(inspection: dict[str, object]) -> list[dict[
         return []
 
     target_algorithm = "ECC" if "ephemeral_public_key_pem" in metadata else "RSA"
-    bundles = list_managed_key_bundles()
+    bundles = lister_jeux_cles()
     return [bundle for bundle in bundles if str(bundle.get("algorithm", "")).upper() == target_algorithm]
 
 
 def _render_key_management() -> None:
     with st.expander("Gestion des clés et certificats", expanded=False):
-        bundles = list_managed_key_bundles()
+        bundles = lister_jeux_cles()
         _render_step_inline(
             3,
             "Préparer une clé ou un certificat",
@@ -440,13 +440,13 @@ def _render_key_management() -> None:
                 else:
                     try:
                         if generation_type == "Paire de clés RSA":
-                            bundle = generate_rsa_key_pair(label.strip(), rsa_key_size)
+                            bundle = generer_paire_cles_rsa(label.strip(), rsa_key_size)
                         elif generation_type == "Paire de clés ECC":
-                            bundle = generate_ecc_key_pair(label.strip(), ecc_curve)
+                            bundle = generer_paire_cles_ecc(label.strip(), ecc_curve)
                         elif generation_type == "Certificat ICP RSA":
-                            bundle = generate_self_signed_certificate(label.strip(), "RSA", common_name.strip(), int(validity_days))
+                            bundle = generer_certificat_autosigne(label.strip(), "RSA", common_name.strip(), int(validity_days))
                         else:
-                            bundle = generate_self_signed_certificate(label.strip(), "ECC", common_name.strip(), int(validity_days))
+                            bundle = generer_certificat_autosigne(label.strip(), "ECC", common_name.strip(), int(validity_days))
                     except Exception as exc:
                         st.error(f"Génération impossible : {exc}")
                     else:
@@ -468,7 +468,7 @@ def _render_key_management() -> None:
                 _render_bundle_downloads(selected_bundle)
                 if st.button("Supprimer ce jeu", type="secondary", use_container_width=True, key="delete_key_bundle"):
                     try:
-                        delete_managed_key_bundle(str(selected_bundle["id"]))
+                        supprimer_jeu_cles(str(selected_bundle["id"]))
                     except Exception as exc:
                         st.error(f"Suppression impossible : {exc}")
                     else:
@@ -519,7 +519,7 @@ def _symmetric_tab(source_path: Path | None) -> None:
             return
 
         try:
-            result = encrypt_symmetric_file(source_path, algorithm, passphrase)
+            result = chiffrer_fichier_symetrique(source_path, algorithm, passphrase)
         except Exception as exc:
             st.error(f"Erreur pendant le chiffrement : {exc}")
             return
@@ -589,7 +589,7 @@ def _asymmetric_tab(source_path: Path | None) -> None:
             )
             try:
                 material_path = _get_bundle_material_path(selected_bundle, algorithm)
-                key_material = load_key_material(material_path)
+                key_material = charger_materiel_cryptographique(material_path)
             except Exception as exc:
                 st.error(f"Impossible de charger le matériel sélectionné : {exc}")
             else:
@@ -617,7 +617,7 @@ def _asymmetric_tab(source_path: Path | None) -> None:
             return
 
         try:
-            result = encrypt_asymmetric_file(source_path, algorithm, key_material)
+            result = chiffrer_fichier_asymetrique(source_path, algorithm, key_material)
         except Exception as exc:
             st.error(f"Erreur pendant le chiffrement : {exc}")
             return
@@ -639,7 +639,7 @@ def _decryption_tab(source_path: Path | None) -> None:
     _render_selected_file(source_path)
 
     try:
-        inspection = inspect_encrypted_file(source_path)
+        inspection = inspecter_fichier_chiffre(source_path)
     except Exception as exc:
         st.error(f"Impossible d'inspecter le fichier chiffré : {exc}")
         return
@@ -682,7 +682,7 @@ def _decryption_tab(source_path: Path | None) -> None:
                 st.error("Renseigne la phrase de passe de déchiffrement.")
                 return
             try:
-                result = decrypt_symmetric_file(source_path, passphrase)
+                result = dechiffrer_fichier_symetrique(source_path, passphrase)
             except Exception as exc:
                 st.error(f"Erreur pendant le déchiffrement : {exc}")
                 return
@@ -722,7 +722,7 @@ def _decryption_tab(source_path: Path | None) -> None:
                 )
                 try:
                     private_key_path = _get_private_key_path(selected_bundle)
-                    private_key_data = load_key_material(private_key_path)
+                    private_key_data = charger_materiel_cryptographique(private_key_path)
                 except Exception as exc:
                     st.error(f"Impossible de charger la clé privée sélectionnée : {exc}")
                 else:
@@ -748,7 +748,7 @@ def _decryption_tab(source_path: Path | None) -> None:
                 st.error("Charge d'abord une clé privée compatible.")
                 return
             try:
-                result = decrypt_asymmetric_file(source_path, private_key_data)
+                result = dechiffrer_fichier_asymetrique(source_path, private_key_data)
             except Exception as exc:
                 st.error(f"Erreur pendant le déchiffrement : {exc}")
                 return
@@ -786,8 +786,8 @@ def main() -> None:
             format_func=lambda path: str(path.relative_to(PROJECT_DIR)) if path != PROJECT_DIR else ".",
         )
 
-        source_files = list_encryptable_files(selected_directory)
-        encrypted_files = list_encrypted_files(selected_directory)
+        source_files = lister_fichiers_chiffrables(selected_directory)
+        encrypted_files = lister_fichiers_chiffres(selected_directory)
         has_compatible_files = bool(source_files or encrypted_files)
         _render_sidebar_step_one(bool(source_files), bool(encrypted_files))
 

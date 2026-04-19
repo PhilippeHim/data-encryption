@@ -49,25 +49,25 @@ class DecryptionResult:
     metadata: dict[str, Any]
 
 
-def _slugify(value: str) -> str:
+def _normaliser_nom(value: str) -> str:
     cleaned = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip().lower()).strip("_")
     return cleaned or "cle"
 
 
-def _build_key_bundle_dir(label: str, suffix: str) -> Path:
+def _construire_dossier_jeu_cles(label: str, suffix: str) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    bundle_dir = KEYS_DIR / f"{_slugify(label)}_{suffix}_{timestamp}"
+    bundle_dir = KEYS_DIR / f"{_normaliser_nom(label)}_{suffix}_{timestamp}"
     bundle_dir.mkdir(parents=True, exist_ok=False)
     return bundle_dir
 
 
-def _write_key_bundle_metadata(bundle_dir: Path, metadata: dict[str, Any]) -> dict[str, Any]:
+def _ecrire_metadonnees_jeu_cles(bundle_dir: Path, metadata: dict[str, Any]) -> dict[str, Any]:
     metadata_path = bundle_dir / "metadata.json"
     metadata_path.write_text(json.dumps(metadata, ensure_ascii=True, indent=2), encoding="utf-8")
     return metadata
 
 
-def _serialize_private_key(private_key) -> bytes:
+def _serialiser_cle_privee(private_key) -> bytes:
     return private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
@@ -75,14 +75,14 @@ def _serialize_private_key(private_key) -> bytes:
     )
 
 
-def _serialize_public_key(public_key) -> bytes:
+def _serialiser_cle_publique(public_key) -> bytes:
     return public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
 
 
-def _curve_from_name(curve_name: str) -> ec.EllipticCurve:
+def _courbe_depuis_nom(curve_name: str) -> ec.EllipticCurve:
     curves = {
         "SECP256R1": ec.SECP256R1,
         "SECP384R1": ec.SECP384R1,
@@ -94,7 +94,7 @@ def _curve_from_name(curve_name: str) -> ec.EllipticCurve:
     return curve_class()
 
 
-def list_managed_key_bundles() -> list[dict[str, Any]]:
+def lister_jeux_cles() -> list[dict[str, Any]]:
     if not KEYS_DIR.exists():
         return []
 
@@ -112,11 +112,11 @@ def list_managed_key_bundles() -> list[dict[str, Any]]:
     return bundles
 
 
-def load_key_material(path: str | Path) -> bytes:
+def charger_materiel_cryptographique(path: str | Path) -> bytes:
     return Path(path).read_bytes()
 
 
-def delete_managed_key_bundle(bundle_id: str) -> None:
+def supprimer_jeu_cles(bundle_id: str) -> None:
     bundle_dir = (KEYS_DIR / bundle_id).resolve()
     keys_root = KEYS_DIR.resolve()
     if bundle_dir.parent != keys_root or not bundle_dir.exists():
@@ -124,61 +124,61 @@ def delete_managed_key_bundle(bundle_id: str) -> None:
     shutil.rmtree(bundle_dir)
 
 
-def generate_rsa_key_pair(label: str, key_size: int = 2048) -> dict[str, Any]:
+def generer_paire_cles_rsa(label: str, key_size: int = 2048) -> dict[str, Any]:
     if key_size not in {2048, 3072, 4096}:
         raise ValueError("La taille de cle RSA doit etre 2048, 3072 ou 4096 bits.")
 
-    bundle_dir = _build_key_bundle_dir(label, "rsa")
+    bundle_dir = _construire_dossier_jeu_cles(label, "rsa")
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=key_size)
     public_key = private_key.public_key()
 
     private_key_path = bundle_dir / "private_key.pem"
     public_key_path = bundle_dir / "public_key.pem"
-    private_key_path.write_bytes(_serialize_private_key(private_key))
-    public_key_path.write_bytes(_serialize_public_key(public_key))
+    private_key_path.write_bytes(_serialiser_cle_privee(private_key))
+    public_key_path.write_bytes(_serialiser_cle_publique(public_key))
 
     metadata = {
         "id": bundle_dir.name,
         "label": label,
         "algorithm": "RSA",
         "kind": "key_pair",
-        "created_at_utc": _utc_now(),
+        "created_at_utc": _maintenant_utc(),
         "details": {"key_size": key_size},
         "files": {
             "private_key": str(private_key_path),
             "public_key": str(public_key_path),
         },
     }
-    return _write_key_bundle_metadata(bundle_dir, metadata)
+    return _ecrire_metadonnees_jeu_cles(bundle_dir, metadata)
 
 
-def generate_ecc_key_pair(label: str, curve_name: str = "SECP256R1") -> dict[str, Any]:
-    curve = _curve_from_name(curve_name)
-    bundle_dir = _build_key_bundle_dir(label, "ecc")
+def generer_paire_cles_ecc(label: str, curve_name: str = "SECP256R1") -> dict[str, Any]:
+    curve = _courbe_depuis_nom(curve_name)
+    bundle_dir = _construire_dossier_jeu_cles(label, "ecc")
     private_key = ec.generate_private_key(curve)
     public_key = private_key.public_key()
 
     private_key_path = bundle_dir / "private_key.pem"
     public_key_path = bundle_dir / "public_key.pem"
-    private_key_path.write_bytes(_serialize_private_key(private_key))
-    public_key_path.write_bytes(_serialize_public_key(public_key))
+    private_key_path.write_bytes(_serialiser_cle_privee(private_key))
+    public_key_path.write_bytes(_serialiser_cle_publique(public_key))
 
     metadata = {
         "id": bundle_dir.name,
         "label": label,
         "algorithm": "ECC",
         "kind": "key_pair",
-        "created_at_utc": _utc_now(),
+        "created_at_utc": _maintenant_utc(),
         "details": {"curve": curve.name},
         "files": {
             "private_key": str(private_key_path),
             "public_key": str(public_key_path),
         },
     }
-    return _write_key_bundle_metadata(bundle_dir, metadata)
+    return _ecrire_metadonnees_jeu_cles(bundle_dir, metadata)
 
 
-def generate_self_signed_certificate(
+def generer_certificat_autosigne(
     label: str,
     algorithm: str,
     common_name: str,
@@ -188,7 +188,7 @@ def generate_self_signed_certificate(
         raise ValueError("La duree de validite doit etre d'au moins 1 jour.")
 
     algorithm_name = algorithm.upper()
-    bundle_dir = _build_key_bundle_dir(label, f"cert_{algorithm_name.lower()}")
+    bundle_dir = _construire_dossier_jeu_cles(label, f"cert_{algorithm_name.lower()}")
 
     if algorithm_name == "RSA":
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -217,8 +217,8 @@ def generate_self_signed_certificate(
     private_key_path = bundle_dir / "private_key.pem"
     public_key_path = bundle_dir / "public_key.pem"
     certificate_path = bundle_dir / "certificate.pem"
-    private_key_path.write_bytes(_serialize_private_key(private_key))
-    public_key_path.write_bytes(_serialize_public_key(public_key))
+    private_key_path.write_bytes(_serialiser_cle_privee(private_key))
+    public_key_path.write_bytes(_serialiser_cle_publique(public_key))
     certificate_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
 
     metadata = {
@@ -226,7 +226,7 @@ def generate_self_signed_certificate(
         "label": label,
         "algorithm": algorithm_name,
         "kind": "certificate",
-        "created_at_utc": _utc_now(),
+        "created_at_utc": _maintenant_utc(),
         "details": {
             **details,
             "common_name": common_name,
@@ -238,14 +238,14 @@ def generate_self_signed_certificate(
             "certificate": str(certificate_path),
         },
     }
-    return _write_key_bundle_metadata(bundle_dir, metadata)
+    return _ecrire_metadonnees_jeu_cles(bundle_dir, metadata)
 
 
-def list_dump_files(base_dir: Path) -> list[Path]:
+def lister_fichiers_dump(base_dir: Path) -> list[Path]:
     return sorted(base_dir.glob("*.dump"))
 
 
-def list_encryptable_files(base_dir: Path) -> list[Path]:
+def lister_fichiers_chiffrables(base_dir: Path) -> list[Path]:
     return sorted(
         path
         for path in base_dir.iterdir()
@@ -253,28 +253,28 @@ def list_encryptable_files(base_dir: Path) -> list[Path]:
     )
 
 
-def list_encrypted_files(base_dir: Path) -> list[Path]:
+def lister_fichiers_chiffres(base_dir: Path) -> list[Path]:
     return sorted(base_dir.glob("*.enc"))
 
 
-def _utc_now() -> str:
+def _maintenant_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _encode_b64(data: bytes) -> str:
+def _encoder_b64(data: bytes) -> str:
     return b64encode(data).decode("ascii")
 
 
-def _decode_b64(data: str) -> bytes:
+def _decoder_b64(data: str) -> bytes:
     return b64decode(data.encode("ascii"))
 
 
-def _pad_pkcs7(data: bytes, block_size: int) -> bytes:
+def _ajouter_remplissage_pkcs7(data: bytes, block_size: int) -> bytes:
     pad_len = block_size - (len(data) % block_size)
     return data + bytes([pad_len]) * pad_len
 
 
-def _unpad_pkcs7(data: bytes, block_size: int) -> bytes:
+def _retirer_remplissage_pkcs7(data: bytes, block_size: int) -> bytes:
     if not data or len(data) % block_size != 0:
         raise ValueError("Bloc chiffre invalide pour un depadding PKCS7.")
 
@@ -286,11 +286,11 @@ def _unpad_pkcs7(data: bytes, block_size: int) -> bytes:
     return data[:-pad_len]
 
 
-def _chunks(data: bytes, size: int) -> list[bytes]:
+def _decouper_blocs(data: bytes, size: int) -> list[bytes]:
     return [data[i : i + size] for i in range(0, len(data), size)]
 
 
-def _derive_key(passphrase: str, key_size: int, salt: bytes) -> bytes:
+def _deriver_cle(passphrase: str, key_size: int, salt: bytes) -> bytes:
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=key_size,
@@ -300,13 +300,13 @@ def _derive_key(passphrase: str, key_size: int, salt: bytes) -> bytes:
     return kdf.derive(passphrase.encode("utf-8"))
 
 
-def _derive_3des_key(passphrase: str, salt: bytes) -> bytes:
-    seed = _derive_key(passphrase, 24, salt)
+def _deriver_cle_3des(passphrase: str, salt: bytes) -> bytes:
+    seed = _deriver_cle(passphrase, 24, salt)
     for _ in range(8):
         try:
             return DES3.adjust_key_parity(seed)
         except ValueError:
-            seed = _derive_key(seed.hex(), 24, salt)
+            seed = _deriver_cle(seed.hex(), 24, salt)
     raise ValueError("Impossible de generer une cle Triple DES valide.")
 
 
@@ -344,14 +344,14 @@ class _TwofishEngine:
         self.key = _TwofishKey()
         self._prepare_key(key, len(key), pointer(self.key))
 
-    def encrypt_block(self, block: bytes) -> bytes:
+    def chiffrer_bloc(self, block: bytes) -> bytes:
         if len(block) != 16:
             raise ValueError("Twofish travaille par blocs de 16 octets.")
         output = create_string_buffer(16)
         self._encrypt(pointer(self.key), block, output)
         return output.raw
 
-    def decrypt_block(self, block: bytes) -> bytes:
+    def dechiffrer_bloc(self, block: bytes) -> bytes:
         if len(block) != 16:
             raise ValueError("Twofish travaille par blocs de 16 octets.")
         output = create_string_buffer(16)
@@ -359,22 +359,22 @@ class _TwofishEngine:
         return output.raw
 
 
-def _twofish_cbc_encrypt(key: bytes, iv: bytes, plaintext: bytes) -> bytes:
+def _chiffrer_twofish_cbc(key: bytes, iv: bytes, plaintext: bytes) -> bytes:
     engine = _TwofishEngine(key)
-    padded = _pad_pkcs7(plaintext, 16)
+    padded = _ajouter_remplissage_pkcs7(plaintext, 16)
     previous = iv
     ciphertext = bytearray()
 
-    for block in _chunks(padded, 16):
+    for block in _decouper_blocs(padded, 16):
         mixed = bytes(a ^ b for a, b in zip(block, previous))
-        encrypted = engine.encrypt_block(mixed)
+        encrypted = engine.chiffrer_bloc(mixed)
         ciphertext.extend(encrypted)
         previous = encrypted
 
     return bytes(ciphertext)
 
 
-def _twofish_cbc_decrypt(key: bytes, iv: bytes, ciphertext: bytes) -> bytes:
+def _dechiffrer_twofish_cbc(key: bytes, iv: bytes, ciphertext: bytes) -> bytes:
     if len(ciphertext) % 16 != 0:
         raise ValueError("Le ciphertext Twofish doit etre aligne sur 16 octets.")
 
@@ -382,15 +382,15 @@ def _twofish_cbc_decrypt(key: bytes, iv: bytes, ciphertext: bytes) -> bytes:
     previous = iv
     plaintext = bytearray()
 
-    for block in _chunks(ciphertext, 16):
-        decrypted = engine.decrypt_block(block)
+    for block in _decouper_blocs(ciphertext, 16):
+        decrypted = engine.dechiffrer_bloc(block)
         plaintext.extend(bytes(a ^ b for a, b in zip(decrypted, previous)))
         previous = block
 
-    return _unpad_pkcs7(bytes(plaintext), 16)
+    return _retirer_remplissage_pkcs7(bytes(plaintext), 16)
 
 
-def _build_encrypted_path(source_path: Path, suffix: str) -> Path:
+def _construire_chemin_chiffre(source_path: Path, suffix: str) -> Path:
     candidate = source_path.with_name(f"{source_path.name}.{suffix}.enc")
     if not candidate.exists():
         return candidate
@@ -399,7 +399,7 @@ def _build_encrypted_path(source_path: Path, suffix: str) -> Path:
     return source_path.with_name(f"{source_path.name}.{suffix}_{timestamp}.enc")
 
 
-def _build_decrypted_path(source_path: Path, original_name: str | None) -> Path:
+def _construire_chemin_dechiffre(source_path: Path, original_name: str | None) -> Path:
     target_name = original_name or source_path.stem
     candidate = source_path.with_name(target_name)
     if not candidate.exists():
@@ -409,13 +409,13 @@ def _build_decrypted_path(source_path: Path, original_name: str | None) -> Path:
     return source_path.with_name(f"{target_name}.decrypted_{timestamp}")
 
 
-def _write_payload(output_path: Path, metadata: dict[str, Any], ciphertext: bytes) -> Path:
+def _ecrire_charge_utile(output_path: Path, metadata: dict[str, Any], ciphertext: bytes) -> Path:
     metadata_bytes = json.dumps(metadata, ensure_ascii=True, indent=2).encode("utf-8")
     output_path.write_bytes(MAGIC + struct.pack(">I", len(metadata_bytes)) + metadata_bytes + ciphertext)
     return output_path
 
 
-def read_encrypted_payload(source_path: Path) -> tuple[dict[str, Any], bytes]:
+def lire_charge_utile_chiffree(source_path: Path) -> tuple[dict[str, Any], bytes]:
     raw_data = source_path.read_bytes()
     if len(raw_data) < len(MAGIC) + 4 or raw_data[: len(MAGIC)] != MAGIC:
         raise ValueError("Le fichier ne correspond pas au format chiffre attendu.")
@@ -437,8 +437,8 @@ def read_encrypted_payload(source_path: Path) -> tuple[dict[str, Any], bytes]:
     return metadata, ciphertext
 
 
-def inspect_encrypted_file(source_path: Path) -> dict[str, Any]:
-    metadata, ciphertext = read_encrypted_payload(source_path)
+def inspecter_fichier_chiffre(source_path: Path) -> dict[str, Any]:
+    metadata, ciphertext = lire_charge_utile_chiffree(source_path)
     return {
         "family": metadata.get("family"),
         "algorithm": metadata.get("algorithm"),
@@ -449,7 +449,7 @@ def inspect_encrypted_file(source_path: Path) -> dict[str, Any]:
     }
 
 
-def _load_history_entries() -> list[dict[str, Any]]:
+def _charger_entrees_historique() -> list[dict[str, Any]]:
     if not HISTORY_FILE.exists():
         return []
 
@@ -464,24 +464,24 @@ def _load_history_entries() -> list[dict[str, Any]]:
     return [entry for entry in raw_data if isinstance(entry, dict)]
 
 
-def load_transaction_history(limit: int | None = None) -> list[dict[str, Any]]:
-    entries = list(reversed(_load_history_entries()))
+def charger_historique_transactions(limit: int | None = None) -> list[dict[str, Any]]:
+    entries = list(reversed(_charger_entrees_historique()))
     if limit is None:
         return entries
     return entries[:limit]
 
 
-def load_encryption_history(limit: int | None = None) -> list[dict[str, Any]]:
-    return load_transaction_history(limit)
+def charger_historique_chiffrement(limit: int | None = None) -> list[dict[str, Any]]:
+    return charger_historique_transactions(limit)
 
 
-def _append_history_entry(entry: dict[str, Any]) -> None:
-    history = _load_history_entries()
+def _ajouter_entree_historique(entry: dict[str, Any]) -> None:
+    history = _charger_entrees_historique()
     history.append(entry)
     HISTORY_FILE.write_text(json.dumps(history, ensure_ascii=True, indent=2), encoding="utf-8")
 
 
-def _record_transaction(
+def _enregistrer_transaction(
     operation: str,
     family: str,
     algorithm: str,
@@ -491,7 +491,7 @@ def _record_transaction(
     created_at_utc: str | None = None,
 ) -> None:
     history_entry = {
-        "created_at_utc": created_at_utc or _utc_now(),
+        "created_at_utc": created_at_utc or _maintenant_utc(),
         "operation": operation,
         "family": family,
         "algorithm": algorithm,
@@ -502,10 +502,10 @@ def _record_transaction(
         "output_path": str(output_path),
         "execution_time_ms": execution_time_ms,
     }
-    _append_history_entry(history_entry)
+    _ajouter_entree_historique(history_entry)
 
 
-def _finalize_encryption(
+def _finaliser_chiffrement(
     source_path: Path,
     output_path: Path,
     algorithm: str,
@@ -514,11 +514,11 @@ def _finalize_encryption(
     ciphertext: bytes,
     started_at: float,
 ) -> EncryptionResult:
-    _write_payload(output_path, metadata, ciphertext)
+    _ecrire_charge_utile(output_path, metadata, ciphertext)
     execution_time_ms = round((perf_counter() - started_at) * 1000, 3)
     metadata["execution_time_ms"] = execution_time_ms
 
-    _record_transaction(
+    _enregistrer_transaction(
         operation="encryption",
         family=family,
         algorithm=metadata.get("algorithm", algorithm),
@@ -537,7 +537,7 @@ def _finalize_encryption(
     )
 
 
-def _finalize_decryption(
+def _finaliser_dechiffrement(
     source_path: Path,
     output_path: Path,
     family: str,
@@ -549,10 +549,10 @@ def _finalize_decryption(
     output_path.write_bytes(plaintext)
     execution_time_ms = round((perf_counter() - started_at) * 1000, 3)
     result_metadata = dict(metadata)
-    result_metadata["decrypted_at_utc"] = _utc_now()
+    result_metadata["decrypted_at_utc"] = _maintenant_utc()
     result_metadata["execution_time_ms"] = execution_time_ms
 
-    _record_transaction(
+    _enregistrer_transaction(
         operation="decryption",
         family=family,
         algorithm=algorithm,
@@ -571,7 +571,7 @@ def _finalize_decryption(
     )
 
 
-def encrypt_symmetric_file(source_path: Path, algorithm: str, passphrase: str) -> EncryptionResult:
+def chiffrer_fichier_symetrique(source_path: Path, algorithm: str, passphrase: str) -> EncryptionResult:
     if not passphrase:
         raise ValueError("Une phrase de passe est requise pour le chiffrement symetrique.")
 
@@ -582,83 +582,83 @@ def encrypt_symmetric_file(source_path: Path, algorithm: str, passphrase: str) -
 
     if algorithm_name == "DES":
         iv = get_random_bytes(8)
-        key = _derive_key(passphrase, 8, salt)
-        ciphertext = DES.new(key, DES.MODE_CBC, iv).encrypt(_pad_pkcs7(plaintext, DES.block_size))
+        key = _deriver_cle(passphrase, 8, salt)
+        ciphertext = DES.new(key, DES.MODE_CBC, iv).encrypt(_ajouter_remplissage_pkcs7(plaintext, DES.block_size))
         metadata = {
             "family": "symmetric",
             "algorithm": "DES",
             "mode": "CBC",
-            "salt_b64": _encode_b64(salt),
-            "iv_b64": _encode_b64(iv),
+            "salt_b64": _encoder_b64(salt),
+            "iv_b64": _encoder_b64(iv),
             "kdf": "PBKDF2-SHA256",
             "iterations": PBKDF2_ITERATIONS,
             "source_name": source_path.name,
-            "created_at_utc": _utc_now(),
+            "created_at_utc": _maintenant_utc(),
         }
-        output_path = _build_encrypted_path(source_path, "des")
+        output_path = _construire_chemin_chiffre(source_path, "des")
     elif algorithm_name == "TRIPLE DES":
         iv = get_random_bytes(8)
-        key = _derive_3des_key(passphrase, salt)
-        ciphertext = DES3.new(key, DES3.MODE_CBC, iv).encrypt(_pad_pkcs7(plaintext, DES3.block_size))
+        key = _deriver_cle_3des(passphrase, salt)
+        ciphertext = DES3.new(key, DES3.MODE_CBC, iv).encrypt(_ajouter_remplissage_pkcs7(plaintext, DES3.block_size))
         metadata = {
             "family": "symmetric",
             "algorithm": "Triple DES",
             "mode": "CBC",
-            "salt_b64": _encode_b64(salt),
-            "iv_b64": _encode_b64(iv),
+            "salt_b64": _encoder_b64(salt),
+            "iv_b64": _encoder_b64(iv),
             "kdf": "PBKDF2-SHA256",
             "iterations": PBKDF2_ITERATIONS,
             "source_name": source_path.name,
-            "created_at_utc": _utc_now(),
+            "created_at_utc": _maintenant_utc(),
         }
-        output_path = _build_encrypted_path(source_path, "triple_des")
+        output_path = _construire_chemin_chiffre(source_path, "triple_des")
     elif algorithm_name == "AES":
         iv = get_random_bytes(16)
-        key = _derive_key(passphrase, 32, salt)
-        ciphertext = AES.new(key, AES.MODE_CBC, iv).encrypt(_pad_pkcs7(plaintext, AES.block_size))
+        key = _deriver_cle(passphrase, 32, salt)
+        ciphertext = AES.new(key, AES.MODE_CBC, iv).encrypt(_ajouter_remplissage_pkcs7(plaintext, AES.block_size))
         metadata = {
             "family": "symmetric",
             "algorithm": "AES-256",
             "mode": "CBC",
-            "salt_b64": _encode_b64(salt),
-            "iv_b64": _encode_b64(iv),
+            "salt_b64": _encoder_b64(salt),
+            "iv_b64": _encoder_b64(iv),
             "kdf": "PBKDF2-SHA256",
             "iterations": PBKDF2_ITERATIONS,
             "source_name": source_path.name,
-            "created_at_utc": _utc_now(),
+            "created_at_utc": _maintenant_utc(),
         }
-        output_path = _build_encrypted_path(source_path, "aes")
+        output_path = _construire_chemin_chiffre(source_path, "aes")
     elif algorithm_name == "TWOFISH":
         iv = get_random_bytes(16)
-        key = _derive_key(passphrase, 32, salt)
-        ciphertext = _twofish_cbc_encrypt(key, iv, plaintext)
+        key = _deriver_cle(passphrase, 32, salt)
+        ciphertext = _chiffrer_twofish_cbc(key, iv, plaintext)
         metadata = {
             "family": "symmetric",
             "algorithm": "Twofish-256",
             "mode": "CBC",
-            "salt_b64": _encode_b64(salt),
-            "iv_b64": _encode_b64(iv),
+            "salt_b64": _encoder_b64(salt),
+            "iv_b64": _encoder_b64(iv),
             "kdf": "PBKDF2-SHA256",
             "iterations": PBKDF2_ITERATIONS,
             "source_name": source_path.name,
-            "created_at_utc": _utc_now(),
+            "created_at_utc": _maintenant_utc(),
         }
-        output_path = _build_encrypted_path(source_path, "twofish")
+        output_path = _construire_chemin_chiffre(source_path, "twofish")
     else:
         raise ValueError(f"Algorithme symetrique non supporte: {algorithm}")
 
-    return _finalize_encryption(source_path, output_path, algorithm_name, "symmetric", metadata, ciphertext, started_at)
+    return _finaliser_chiffrement(source_path, output_path, algorithm_name, "symmetric", metadata, ciphertext, started_at)
 
 
-def load_public_key_from_pem(data: bytes):
+def charger_cle_publique_depuis_pem(data: bytes):
     return serialization.load_pem_public_key(data)
 
 
-def load_private_key_from_pem(data: bytes):
+def charger_cle_privee_depuis_pem(data: bytes):
     return serialization.load_pem_private_key(data, password=None)
 
 
-def load_public_key_from_certificate(data: bytes):
+def charger_cle_publique_depuis_certificat(data: bytes):
     try:
         certificate = x509.load_pem_x509_certificate(data)
     except ValueError:
@@ -666,58 +666,58 @@ def load_public_key_from_certificate(data: bytes):
     return certificate.public_key(), certificate
 
 
-def decrypt_symmetric_file(source_path: Path, passphrase: str) -> DecryptionResult:
+def dechiffrer_fichier_symetrique(source_path: Path, passphrase: str) -> DecryptionResult:
     if not passphrase:
         raise ValueError("Une phrase de passe est requise pour le dechiffrement symetrique.")
 
     started_at = perf_counter()
-    metadata, ciphertext = read_encrypted_payload(source_path)
+    metadata, ciphertext = lire_charge_utile_chiffree(source_path)
     family = str(metadata.get("family", "")).lower()
     if family != "symmetric":
         raise ValueError("Le fichier selectionne n'est pas un fichier chiffre en mode symetrique.")
 
     algorithm_name = str(metadata.get("algorithm", "")).upper()
-    salt = _decode_b64(str(metadata.get("salt_b64", "")))
-    iv = _decode_b64(str(metadata.get("iv_b64", "")))
+    salt = _decoder_b64(str(metadata.get("salt_b64", "")))
+    iv = _decoder_b64(str(metadata.get("iv_b64", "")))
 
     if algorithm_name == "DES":
-        key = _derive_key(passphrase, 8, salt)
+        key = _deriver_cle(passphrase, 8, salt)
         plaintext = DES.new(key, DES.MODE_CBC, iv).decrypt(ciphertext)
-        plaintext = _unpad_pkcs7(plaintext, DES.block_size)
+        plaintext = _retirer_remplissage_pkcs7(plaintext, DES.block_size)
     elif algorithm_name == "TRIPLE DES":
-        key = _derive_3des_key(passphrase, salt)
+        key = _deriver_cle_3des(passphrase, salt)
         plaintext = DES3.new(key, DES3.MODE_CBC, iv).decrypt(ciphertext)
-        plaintext = _unpad_pkcs7(plaintext, DES3.block_size)
+        plaintext = _retirer_remplissage_pkcs7(plaintext, DES3.block_size)
     elif algorithm_name == "AES-256":
-        key = _derive_key(passphrase, 32, salt)
+        key = _deriver_cle(passphrase, 32, salt)
         plaintext = AES.new(key, AES.MODE_CBC, iv).decrypt(ciphertext)
-        plaintext = _unpad_pkcs7(plaintext, AES.block_size)
+        plaintext = _retirer_remplissage_pkcs7(plaintext, AES.block_size)
     elif algorithm_name == "TWOFISH-256":
-        key = _derive_key(passphrase, 32, salt)
-        plaintext = _twofish_cbc_decrypt(key, iv, ciphertext)
+        key = _deriver_cle(passphrase, 32, salt)
+        plaintext = _dechiffrer_twofish_cbc(key, iv, ciphertext)
     else:
         raise ValueError(f"Algorithme symetrique non supporte pour le dechiffrement: {metadata.get('algorithm')}")
 
-    output_path = _build_decrypted_path(source_path, str(metadata.get("source_name", "")) or None)
-    return _finalize_decryption(source_path, output_path, "symmetric", str(metadata.get("algorithm", "Symmetric")), metadata, plaintext, started_at)
+    output_path = _construire_chemin_dechiffre(source_path, str(metadata.get("source_name", "")) or None)
+    return _finaliser_dechiffrement(source_path, output_path, "symmetric", str(metadata.get("algorithm", "Symmetric")), metadata, plaintext, started_at)
 
 
-def decrypt_asymmetric_file(source_path: Path, private_key_data: bytes) -> DecryptionResult:
+def dechiffrer_fichier_asymetrique(source_path: Path, private_key_data: bytes) -> DecryptionResult:
     started_at = perf_counter()
-    metadata, ciphertext = read_encrypted_payload(source_path)
+    metadata, ciphertext = lire_charge_utile_chiffree(source_path)
     family = str(metadata.get("family", "")).lower()
     if family != "asymmetric":
         raise ValueError("Le fichier selectionne n'est pas un fichier chiffre en mode asymetrique.")
 
-    private_key = load_private_key_from_pem(private_key_data)
+    private_key = charger_cle_privee_depuis_pem(private_key_data)
     algorithm_name = str(metadata.get("algorithm", "")).upper()
-    nonce = _decode_b64(str(metadata.get("nonce_b64", "")))
+    nonce = _decoder_b64(str(metadata.get("nonce_b64", "")))
 
     if "wrapped_key_b64" in metadata:
         if not isinstance(private_key, rsa.RSAPrivateKey):
             raise ValueError("Une cle privee RSA est requise pour ce fichier.")
 
-        wrapped_key = _decode_b64(str(metadata.get("wrapped_key_b64", "")))
+        wrapped_key = _decoder_b64(str(metadata.get("wrapped_key_b64", "")))
         data_key = private_key.decrypt(
             wrapped_key,
             padding.OAEP(
@@ -730,7 +730,7 @@ def decrypt_asymmetric_file(source_path: Path, private_key_data: bytes) -> Decry
         if not isinstance(private_key, ec.EllipticCurvePrivateKey):
             raise ValueError("Une cle privee ECC est requise pour ce fichier.")
 
-        ephemeral_public_key = load_public_key_from_pem(str(metadata.get("ephemeral_public_key_pem", "")).encode("utf-8"))
+        ephemeral_public_key = charger_cle_publique_depuis_pem(str(metadata.get("ephemeral_public_key_pem", "")).encode("utf-8"))
         if not isinstance(ephemeral_public_key, ec.EllipticCurvePublicKey):
             raise ValueError("La cle publique ephemere embarquee est invalide.")
 
@@ -745,11 +745,11 @@ def decrypt_asymmetric_file(source_path: Path, private_key_data: bytes) -> Decry
         raise ValueError("Le fichier asymetrique ne contient pas les informations necessaires au dechiffrement.")
 
     plaintext = AESGCM(data_key).decrypt(nonce, ciphertext, None)
-    output_path = _build_decrypted_path(source_path, str(metadata.get("source_name", "")) or None)
-    return _finalize_decryption(source_path, output_path, "asymmetric", algorithm_name or "Asymmetric", metadata, plaintext, started_at)
+    output_path = _construire_chemin_dechiffre(source_path, str(metadata.get("source_name", "")) or None)
+    return _finaliser_dechiffrement(source_path, output_path, "asymmetric", algorithm_name or "Asymmetric", metadata, plaintext, started_at)
 
 
-def _encrypt_with_rsa_public_key(
+def _chiffrer_avec_cle_publique_rsa(
     source_path: Path,
     public_key,
     label: str,
@@ -777,18 +777,18 @@ def _encrypt_with_rsa_public_key(
         "algorithm": label,
         "data_cipher": "AES-256-GCM",
         "key_wrap": "RSA-OAEP-SHA256",
-        "nonce_b64": _encode_b64(nonce),
-        "wrapped_key_b64": _encode_b64(wrapped_key),
+        "nonce_b64": _encoder_b64(nonce),
+        "wrapped_key_b64": _encoder_b64(wrapped_key),
         "source_name": source_path.name,
-        "created_at_utc": _utc_now(),
+        "created_at_utc": _maintenant_utc(),
     }
     if extra_metadata:
         metadata.update(extra_metadata)
-    output_path = _build_encrypted_path(source_path, label.lower().replace(" ", "_"))
-    return _finalize_encryption(source_path, output_path, label, "asymmetric", metadata, ciphertext, started_at)
+    output_path = _construire_chemin_chiffre(source_path, label.lower().replace(" ", "_"))
+    return _finaliser_chiffrement(source_path, output_path, label, "asymmetric", metadata, ciphertext, started_at)
 
 
-def _encrypt_with_ecc_public_key(
+def _chiffrer_avec_cle_publique_ecc(
     source_path: Path,
     public_key,
     label: str,
@@ -820,38 +820,38 @@ def _encrypt_with_ecc_public_key(
         "data_cipher": "AES-256-GCM",
         "key_agreement": "ECDH-HKDF-SHA256",
         "curve": public_key.curve.name,
-        "nonce_b64": _encode_b64(nonce),
+        "nonce_b64": _encoder_b64(nonce),
         "ephemeral_public_key_pem": ephemeral_public_key.decode("utf-8"),
         "source_name": source_path.name,
-        "created_at_utc": _utc_now(),
+        "created_at_utc": _maintenant_utc(),
     }
     if extra_metadata:
         metadata.update(extra_metadata)
-    output_path = _build_encrypted_path(source_path, label.lower().replace(" ", "_"))
-    return _finalize_encryption(source_path, output_path, label, "asymmetric", metadata, ciphertext, started_at)
+    output_path = _construire_chemin_chiffre(source_path, label.lower().replace(" ", "_"))
+    return _finaliser_chiffrement(source_path, output_path, label, "asymmetric", metadata, ciphertext, started_at)
 
 
-def encrypt_asymmetric_file(source_path: Path, algorithm: str, key_material: bytes) -> EncryptionResult:
+def chiffrer_fichier_asymetrique(source_path: Path, algorithm: str, key_material: bytes) -> EncryptionResult:
     algorithm_name = algorithm.upper()
 
     if algorithm_name == "RSA":
-        public_key = load_public_key_from_pem(key_material)
-        return _encrypt_with_rsa_public_key(source_path, public_key, "RSA")
+        public_key = charger_cle_publique_depuis_pem(key_material)
+        return _chiffrer_avec_cle_publique_rsa(source_path, public_key, "RSA")
 
     if algorithm_name == "ECC":
-        public_key = load_public_key_from_pem(key_material)
-        return _encrypt_with_ecc_public_key(source_path, public_key, "ECC")
+        public_key = charger_cle_publique_depuis_pem(key_material)
+        return _chiffrer_avec_cle_publique_ecc(source_path, public_key, "ECC")
 
     if algorithm_name == "INFRASTRUCTURE A CLE PUBLIQUE (ICP)":
-        public_key, certificate = load_public_key_from_certificate(key_material)
+        public_key, certificate = charger_cle_publique_depuis_certificat(key_material)
         extra_metadata = {
             "certificate_subject": certificate.subject.rfc4514_string(),
             "certificate_issuer": certificate.issuer.rfc4514_string(),
         }
         if isinstance(public_key, rsa.RSAPublicKey):
-            return _encrypt_with_rsa_public_key(source_path, public_key, "ICP RSA", extra_metadata)
+            return _chiffrer_avec_cle_publique_rsa(source_path, public_key, "ICP RSA", extra_metadata)
         elif isinstance(public_key, ec.EllipticCurvePublicKey):
-            return _encrypt_with_ecc_public_key(source_path, public_key, "ICP ECC", extra_metadata)
+            return _chiffrer_avec_cle_publique_ecc(source_path, public_key, "ICP ECC", extra_metadata)
         else:
             raise ValueError("Le certificat fourni ne contient ni cle RSA ni cle ECC exploitable.")
 

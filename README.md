@@ -87,31 +87,41 @@ Il contient des cellules destinées à :
 - exporter les tables de la base au format CSV dans `csv_exports/` ;
 - produire des artefacts concrets qui pourront ensuite être chiffrés.
 
-Structure du schéma "cours_securite" :
+Structure de la base `cours_securite` :
 
-cours_securite=# \dn
-        List of schemas
-    Name    |       Owner       
-------------+-------------------
- production | philippe
- public     | pg_database_owner
- research   | philippe
-(3 rows)
+### Vue d'ensemble des schémas
 
-cours_securite=# \dt production.*
-              List of relations
-   Schema   |     Name     | Type  |  Owner   
-------------+--------------+-------+----------
- production | clients      | table | philippe
- production | transactions | table | philippe
-(2 rows)
+| Schéma | Rôle | Propriétaire |
+| --- | --- | --- |
+| `production` | Données opérationnelles principales | `philippe` |
+| `public` | Schéma PostgreSQL par défaut | `pg_database_owner` |
+| `research` | Données orientées expérimentation et analyse | `philippe` |
 
-cours_securite=# \dt research.*
-              List of relations
-  Schema  |     Name      | Type  |  Owner   
-----------+---------------+-------+----------
- research | algos_trading | table | philippe
-(1 row)
+### Organisation fonctionnelle
+
+```text
+cours_securite
+├── production
+│   ├── clients
+│   └── transactions
+└── research
+    └── algos_trading
+```
+
+### Tables par schéma
+
+#### Schéma `production`
+
+| Table | Type | Propriétaire | Finalité |
+| --- | --- | --- | --- |
+| `clients` | `table` | `philippe` | Stockage des informations clients |
+| `transactions` | `table` | `philippe` | Historique ou suivi des opérations |
+
+#### Schéma `research`
+
+| Table | Type | Propriétaire | Finalité |
+| --- | --- | --- | --- |
+| `algos_trading` | `table` | `philippe` | Données liées aux stratégies ou algorithmes de trading |
 
 
 Son rôle dans l'ensemble du projet est donc de préparer les données sources. Il intervient en amont du chiffrement.

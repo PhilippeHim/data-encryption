@@ -20,9 +20,9 @@ env/
 .streamlit/
 
 # Generated database artifacts
-backups/*.dump
-backups/*.enc
-csv_exports/
+# backups/*.dump
+# backups/*.enc
+# csv_exports/
 
 # Optional local outputs
 *.log

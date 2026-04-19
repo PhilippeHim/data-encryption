@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local environments and secrets
+.env
+.venv/
+venv/
+env/
+
+# macOS / editors
+.DS_Store
+.vscode/
+
+# Streamlit cache
+.streamlit/
+
+# Generated database artifacts
+backups/*.dump
+backups/*.enc
+csv_exports/
+
+# Optional local outputs
+*.log
+
+# Cours Naima
+Sécurité des bases de données_M1Data&IA_16_04_NaimaOUBENALI.pptx
+Sécurité des BDD_Postgres - Philippe HIM.pdf

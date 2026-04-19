@@ -1,0 +1,14 @@
+name: cours_securite
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - pip
+  - ipykernel
+  - jupyterlab
+  - cryptography
+  - pandas
+  - streamlit
+  - pip:
+      - pycryptodome
+      - twofish

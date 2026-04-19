@@ -1,57 +1,96 @@
 # Cours Sécurité des Données
 
-Projet d'école consacré à l'apprentissage des formats standards de chiffrement avec Python, appliqués à des sauvegardes PostgreSQL et à l'export de données tabulaires.
+Projet pédagogique autour de la sécurité des données appliquée à des sauvegardes PostgreSQL.
 
-L'objectif du projet est double :
-- manipuler des dumps et des exports issus d'une base PostgreSQL ;
-- expérimenter des mécanismes de chiffrement symétrique et asymétrique dans un cadre pédagogique, avec un bonus d'interface utilisateur via Streamlit.
+Le dépôt combine trois briques :
+- un notebook pour produire des dumps et des exports CSV ;
+- un module Python pour chiffrer et déchiffrer des fichiers ;
+- une application Streamlit pour piloter les traitements sans passer uniquement par le terminal.
 
-## Esprit du projet
+L'objectif n'est pas de fournir une solution industrielle prête pour la production, mais de comprendre les mécanismes de chiffrement, les formats de clés, les certificats et les contraintes concrètes d'implémentation.
 
-Ce dépôt a été conçu comme un terrain d'exploration pratique autour de la sécurité des données :
-- création et export de sauvegardes PostgreSQL ;
-- extraction de tables au format CSV ;
-- chiffrement de fichiers avec plusieurs familles d'algorithmes ;
-- mise à disposition d'une interface simple pour tester les traitements sans passer uniquement par le terminal.
+## Objectifs du projet
 
-Le but n'est pas de produire une solution industrielle prête à être déployée, mais de comprendre les principes, les formats, les dépendances Python et les limites des choix cryptographiques.
+- manipuler des dumps PostgreSQL et des exports tabulaires ;
+- expérimenter le chiffrement symétrique et asymétrique ;
+- comprendre la différence entre clé publique, clé privée et certificat ;
+- visualiser les traitements via une interface simple ;
+- conserver un historique local des opérations de chiffrement et de déchiffrement.
 
 ## Fonctionnalités
 
-### 1. Notebook Jupyter
+### Notebook de préparation des données
 
 Le notebook [chiffrement_donnees.ipynb](./chiffrement_donnees.ipynb) permet de :
-- exporter une sauvegarde complète de la base `cours_securite` ;
-- exporter les tables de la base au format CSV ;
-- générer des fichiers de travail dans des dossiers dédiés comme `backups/` et `csv_exports/`.
+- générer une sauvegarde de la base `cours_securite` ;
+- exporter les tables au format CSV ;
+- produire des fichiers de travail dans `backups/` et `csv_exports/`.
 
-### 2. Chiffrement symétrique
+### Chiffrement symétrique
 
-Le moteur Python contenu dans [encryption_utils.py](./encryption_utils.py) prend en charge plusieurs formats de chiffrement symétrique :
+Le module [encryption_utils.py](./encryption_utils.py) prend en charge :
 - `DES`
 - `Triple DES`
 - `AES`
 - `Twofish`
 
-Dans le projet, chaque fichier chiffré est écrit dans le même répertoire que le fichier source, avec une extension `.enc` et des métadonnées embarquées.
+Chaque chiffrement symétrique :
+- dérive une clé depuis une phrase de passe ;
+- écrit un fichier `.enc` dans le même dossier que le fichier source ;
+- embarque les métadonnées utiles au déchiffrement ;
+- mesure le temps d'exécution.
 
-### 3. Chiffrement asymétrique
+Le projet permet aussi le déchiffrement symétrique à partir de la phrase de passe d'origine.
 
-Le projet propose également un mode de chiffrement asymétrique avec :
+### Chiffrement asymétrique
+
+Le projet prend en charge :
 - `RSA`
 - `ECC`
 - `Infrastructure à clé publique (ICP)` via certificat
 
-Le chiffrement asymétrique est pensé pour un usage pédagogique : la clé publique ou le certificat sert à protéger une clé de session utilisée ensuite pour le chiffrement du contenu.
+Le principe utilisé est pédagogique et classique :
+- une clé publique ou un certificat sert à protéger une clé de session ;
+- le contenu du fichier est ensuite chiffré avec cette clé de session ;
+- la clé privée correspondante est nécessaire pour le déchiffrement.
 
-### 4. Interface Streamlit
+Le projet permet aussi le déchiffrement asymétrique à l'aide de la clé privée associée.
 
-L'application [streamlit_app.py](./streamlit_app.py) apporte une couche visuelle au projet :
-- sélection d'un dossier d'entrée ;
-- sélection d'un fichier `.dump` ;
-- choix du mode symétrique ou asymétrique ;
-- choix de l'algorithme ;
-- génération du fichier chiffré dans le même dossier que le dump source.
+### Gestion locale des clés
+
+Depuis l'application Streamlit, il est possible de :
+- générer une paire de clés `RSA` ;
+- générer une paire de clés `ECC` ;
+- générer un certificat auto-signé `ICP RSA` ;
+- générer un certificat auto-signé `ICP ECC` ;
+- sélectionner une clé publique, une clé privée ou un certificat depuis une bibliothèque locale ;
+- télécharger la clé publique, la clé privée et le certificat quand ils existent ;
+- supprimer un jeu de clés local.
+
+Les jeux de clés générés sont stockés dans `keys/`.
+
+### Interface Streamlit
+
+L'application [streamlit_app.py](./streamlit_app.py) permet de :
+- parcourir les dossiers du projet ;
+- sélectionner un fichier `.dump` à chiffrer ;
+- sélectionner un fichier `.enc` à déchiffrer ;
+- choisir le mode symétrique ou asymétrique ;
+- générer ou réutiliser des clés et certificats locaux ;
+- afficher le temps d'exécution de chaque opération ;
+- consulter un historique local des transactions.
+
+### Historique des transactions
+
+Chaque chiffrement et chaque déchiffrement réussi est enregistré dans `encryption_history.json` avec :
+- la date ;
+- l'opération ;
+- la famille de chiffrement ;
+- l'algorithme ;
+- le fichier source ;
+- le fichier de sortie ;
+- la taille du fichier source ;
+- le temps d'exécution.
 
 ## Structure du dépôt
 
@@ -60,164 +99,58 @@ cours_securite/
 ├── chiffrement_donnees.ipynb
 ├── encryption_utils.py
 ├── streamlit_app.py
-├── environment.yml
 ├── requirements.txt
+├── environment.yml
 ├── backups/
 ├── csv_exports/
+├── keys/
 └── README.md
 ```
 
-## Architecture du projet
-
-Le projet est organisé en trois couches qui se complètent :
-- une couche d'exploration et de production de données avec le notebook ;
-- une couche logique avec les fonctions Python de chiffrement ;
-- une couche de démonstration avec l'interface Streamlit.
-
-Autrement dit, le notebook produit les fichiers à manipuler, le module Python applique les algorithmes de chiffrement, et Streamlit sert d'interface pour piloter ces traitements sans écrire de commandes à la main.
-
-## Fonctionnement interne des fichiers
+## Rôle des principaux fichiers
 
 ### `chiffrement_donnees.ipynb`
 
-Ce notebook permet l'export de dumps d'une base de donnée PostgreSQL.
-
-Il contient des cellules destinées à :
-- créer une sauvegarde complète de la base `cours_securite` dans le dossier `backups/` ;
-- exporter les tables de la base au format CSV dans `csv_exports/` ;
-- produire des artefacts concrets qui pourront ensuite être chiffrés.
-
-Structure de la base `cours_securite` :
-
-### Vue d'ensemble des schémas
-
-| Schéma | Rôle | Propriétaire |
-| --- | --- | --- |
-| `production` | Données opérationnelles principales | `philippe` |
-| `public` | Schéma PostgreSQL par défaut | `pg_database_owner` |
-| `research` | Données orientées expérimentation et analyse | `philippe` |
-
-### Organisation fonctionnelle
-
-```text
-cours_securite
-├── production
-│   ├── clients
-│   └── transactions
-└── research
-    └── algos_trading
-```
-
-### Tables par schéma
-
-#### Schéma `production`
-
-| Table | Type | Propriétaire | Finalité |
-| --- | --- | --- | --- |
-| `clients` | `table` | `philippe` | Stockage des informations clients |
-| `transactions` | `table` | `philippe` | Historique ou suivi des opérations |
-
-#### Schéma `research`
-
-| Table | Type | Propriétaire | Finalité |
-| --- | --- | --- | --- |
-| `algos_trading` | `table` | `philippe` | Données liées aux stratégies ou algorithmes de trading |
-
-
-Son rôle dans l'ensemble du projet est donc de préparer les données sources. Il intervient en amont du chiffrement.
+Prépare les données sources du projet :
+- export de sauvegardes PostgreSQL ;
+- export de tables en CSV ;
+- génération des fichiers utilisés ensuite dans l'application.
 
 ### `encryption_utils.py`
 
-Ce fichier est le coeur technique du projet. Il centralise toute la logique de chiffrement et évite de dupliquer le code entre scripts et interface.
-
-Il contient principalement :
-- la découverte des fichiers `.dump` via `list_dump_files()` ;
-- la logique de dérivation de clé à partir d'une phrase de passe ;
-- les fonctions de chiffrement symétrique `DES`, `Triple DES`, `AES` et `Twofish` ;
-- les fonctions de chiffrement asymétrique `RSA`, `ECC` et `ICP` ;
-- la construction du fichier de sortie chiffré avec des métadonnées embarquées.
-
-En pratique, ce module prend un fichier source, applique l'algorithme choisi, puis écrit un fichier `.enc` dans le même dossier que l'original.
+Centralise la logique applicative :
+- chiffrement symétrique ;
+- chiffrement asymétrique ;
+- déchiffrement symétrique ;
+- déchiffrement asymétrique ;
+- lecture du format `.enc` ;
+- gestion locale des clés ;
+- enregistrement de l'historique.
 
 ### `streamlit_app.py`
 
-Ce fichier constitue l'interface utilisateur du projet.
-
-Son rôle est d'orchestrer l'utilisation des algorithmes de chiffrement :
-- il affiche les dossiers disponibles ;
-- il permet de choisir un dossier, puis un fichier `.dump` ;
-- il propose un onglet pour le chiffrement symétrique ;
-- il propose un onglet pour le chiffrement asymétrique ;
-- il transmet les paramètres choisis aux fonctions définies dans `encryption_utils.py`.
-
-L'application le pilotage des différents moteurs de chiffrement.
-
-### `environment.yml`
-
-Ce fichier décrit l'environnement conda du projet.
-
-Il permet de recréer un environnement cohérent avec :
-- Python ;
-- Jupyter ;
-- Streamlit ;
-- les bibliothèques cryptographiques nécessaires.
-
-Il sert surtout à rendre le projet réexécutable sur une autre machine ou dans une autre session.
-
-### `requirements.txt`
-
-Ce fichier fournit une alternative légère à conda pour installer les dépendances avec `pip`.
-
-Il complète `environment.yml` et permet une installation plus directe si l'on ne souhaite pas reconstruire tout l'environnement conda.
-
-### `.gitignore`
-
-Le `.gitignore` protège le dépôt contre l'ajout de fichiers générés ou locaux, notamment :
-- les dumps PostgreSQL ;
-- les fichiers chiffrés `.enc` ;
-- les exports CSV ;
-- les caches Python et fichiers temporaires.
-
-Il permet de versionner le code et la documentation sans pousser les artefacts lourds ou sensibles.
+Expose l'interface graphique :
+- chiffrement symétrique ;
+- chiffrement asymétrique ;
+- déchiffrement ;
+- gestion des clés et certificats ;
+- consultation de l'historique.
 
 ### `backups/`
 
-Ce dossier contient les dumps PostgreSQL générés depuis le notebook ou les tests.
-
-Dans le flux du projet, c'est le dossier d'entrée principal pour l'interface de chiffrement. Les fichiers chiffrés y sont également écrits par défaut, à côté du fichier source sélectionné.
+Contient les dumps PostgreSQL utilisés dans les démonstrations et tests.
 
 ### `csv_exports/`
 
-Ce dossier contient les exports tabulaires au format CSV.
+Contient les exports tabulaires issus du notebook.
 
-Il montre la partie extraction et valorisation des données. Même si l'application Streamlit cible surtout les fichiers `.dump`, ces exports illustrent le lien entre sécurité, sauvegarde et exploitation de la donnée.
+### `keys/`
 
-## Articulation entre les fichiers
+Contient les jeux de clés et certificats générés localement depuis l'interface.
 
-Le flux logique du projet peut se lire de cette manière :
+### `encryption_history.json`
 
-1. `chiffrement_donnees.ipynb` produit les sauvegardes et exports.
-2. Les dumps générés sont stockés dans `backups/`.
-3. `streamlit_app.py` affiche ces fichiers dans son interface.
-4. Lorsqu'un utilisateur choisit un algorithme, `streamlit_app.py` appelle les fonctions de `encryption_utils.py`.
-5. `encryption_utils.py` chiffre le fichier et génère un nouveau fichier `.enc` dans le même répertoire.
-
-Cette séparation a un intérêt pédagogique important :
-- le notebook montre la préparation des données ;
-- le module Python montre la logique cryptographique ;
-- l'interface montre comment transformer cette logique en outil simple à manipuler.
-
-## Exemple de scénario complet
-
-1. Exporter une base PostgreSQL avec le notebook.
-2. Vérifier que le dump apparaît dans `backups/`.
-3. Lancer l'interface Streamlit.
-4. Choisir le dossier contenant les dumps.
-5. Sélectionner un fichier d'entrée.
-6. Choisir un algorithme de chiffrement.
-7. Générer le fichier chiffré dans le même répertoire.
-
-Ce scénario montre comment les différentes briques du dépôt s'enchaînent de manière cohérente.
+Fichier généré localement pour stocker l'historique des transactions.
 
 ## Installation
 
@@ -234,23 +167,51 @@ conda activate cours_securite
 pip install -r requirements.txt
 ```
 
-## Lancer le projet
+## Lancement
 
-### Ouvrir le notebook
+### Notebook
 
 ```bash
 jupyter lab
 ```
 
-### Lancer l'interface Streamlit
+### Application Streamlit
 
 ```bash
 streamlit run streamlit_app.py
 ```
 
+## Utilisation rapide
+
+### Chiffrer un dump en symétrique
+
+1. Lancer Streamlit.
+2. Choisir un dossier contenant un fichier `.dump`.
+3. Ouvrir l'onglet `Symétrique`.
+4. Sélectionner un algorithme.
+5. Saisir et confirmer une phrase de passe.
+6. Lancer le chiffrement.
+
+### Chiffrer un dump en asymétrique
+
+1. Lancer Streamlit.
+2. Choisir un fichier `.dump`.
+3. Ouvrir l'onglet `Asymétrique`.
+4. Soit générer un jeu de clés local, soit utiliser un fichier externe.
+5. Sélectionner une clé publique ou un certificat.
+6. Lancer le chiffrement.
+
+### Déchiffrer un fichier `.enc`
+
+1. Choisir un dossier contenant un fichier `.enc`.
+2. Ouvrir l'onglet `Déchiffrement`.
+3. Sélectionner le fichier chiffré.
+4. Fournir la phrase de passe si le fichier est symétrique.
+5. Fournir la clé privée si le fichier est asymétrique.
+6. Lancer le déchiffrement.
+
 ## Dépendances principales
 
-Le projet s'appuie notamment sur :
 - `cryptography`
 - `pycryptodome`
 - `twofish`
@@ -258,63 +219,44 @@ Le projet s'appuie notamment sur :
 - `pandas`
 - `jupyterlab`
 
-## Compatibilité Python et bibliothèques
+## Compatibilité Python
 
-Le projet a été préparé pour fonctionner avec une version récente de Python, en particulier Python `3.13`.
+Le projet est prévu pour fonctionner avec une version récente de Python, notamment Python `3.13`.
 
-Ce point mérite d'être signalé car toutes les bibliothèques de chiffrement ne sont pas toujours immédiatement compatibles avec les versions les plus récentes du langage.
+### Point d'attention sur `Twofish`
 
-### Problème rencontré
+Le paquet `twofish` installe bien son extension compilée, mais son wrapper Python standard repose sur `imp`, un module supprimé dans les versions récentes de Python.
 
-Lors de l'implémentation de l'algorithme `Twofish`, un problème de compatibilité est apparu avec la bibliothèque `twofish`.
+Dans ce projet, `Twofish` est donc utilisé via :
+- le module binaire `_twofish` ;
+- `ctypes` pour appeler les fonctions natives ;
+- `importlib.util.find_spec` pour localiser l'extension compilée.
 
-Le paquet installé contenait bien son extension compilée, mais son module Python principal utilisait `imp`, un ancien module de la bibliothèque standard supprimé dans les versions modernes de Python.
+Cela permet de conserver l'algorithme `Twofish` dans l'application malgré la fragilité du wrapper Python fourni par la dépendance.
 
-En pratique :
-- l'import classique du paquet `twofish` échouait sous Python `3.13` ;
-- l'algorithme ne pouvait donc pas être utilisé directement via son interface Python standard ;
-- le coeur compilé de la bibliothèque restait pourtant présent et exploitable.
+## Limites et précautions
 
-### Solution mise en place
+- `DES` et `Triple DES` sont conservés pour des raisons pédagogiques, pas comme recommandations modernes.
+- `AES` reste la référence symétrique la plus solide du projet.
+- Les clés privées générées localement doivent être protégées et ne doivent pas être partagées.
+- La perte d'une clé privée ou d'une phrase de passe rend le déchiffrement impossible.
+- Les fichiers générés localement comme `keys/` et `encryption_history.json` sont exclus du dépôt via `.gitignore`.
 
-Pour conserver `Twofish` dans le projet sans revenir à une version plus ancienne de Python, une adaptation a été faite dans [encryption_utils.py](./encryption_utils.py) :
-- le projet n'utilise pas le wrapper Python cassé fourni par le paquet ;
-- il charge directement le module binaire `_twofish` ;
-- les fonctions natives sont appelées avec `ctypes` ;
-- la localisation du module compilé est résolue avec `importlib.util.find_spec`.
+## Flux logique du projet
 
-Cette solution permet :
-- de garder Python `3.13` comme base de travail ;
-- de conserver l'algorithme `Twofish` dans l'application ;
-- d'éviter qu'une dépendance partiellement obsolète bloque tout le projet.
+1. Le notebook produit les données sources.
+2. Les dumps sont stockés dans `backups/`.
+3. Streamlit permet de chiffrer ou déchiffrer les fichiers.
+4. `encryption_utils.py` applique la logique cryptographique.
+5. Les résultats sont écrits dans le même dossier que le fichier d'origine.
+6. L'historique local enregistre les opérations effectuées.
 
-### Ce que cela montre
+## Pistes pédagogiques couvertes
 
-Ce cas illustre une idée importante dans un projet de sécurité :
-- un algorithme peut rester pertinent sur le plan théorique ;
-- mais son implémentation logicielle peut devenir fragile si la bibliothèque n'est plus maintenue au même rythme que Python.
-
-Autrement dit, la robustesse d'un projet dépend non seulement des algorithmes choisis, mais aussi de la compatibilité réelle des bibliothèques qui les implémentent.
-
-## Points pédagogiques importants
-
-- `DES` et `Triple DES` sont présents pour l'apprentissage, même s'ils ne sont plus recommandés comme standards modernes.
-- `AES` reste la référence symétrique la plus robuste du projet.
-- `RSA`, `ECC` et l'approche par certificat permettent d'introduire la logique de chiffrement asymétrique.
-- le projet montre aussi qu'une interface simple peut rendre des opérations techniques plus accessibles.
-
-## Limites assumées
-
-- ce projet est avant tout un support d'apprentissage ;
-- il ne remplace pas une architecture de sécurité complète ;
-- la gestion des secrets, du déchiffrement, de la rotation des clés et de l'audit avancé pourrait être approfondie dans une suite du projet.
-
-## Bonus
-
-Le bonus du projet réside dans l'interface Streamlit, qui transforme un exercice technique en mini-outil interactif de démonstration.
-
-Elle permet de passer d'une logique purement scriptée à une approche plus visuelle, plus lisible et plus facile à présenter dans un contexte de soutenance ou de démonstration.
-
-## Auteur
-
-Projet réalisé dans le cadre d'un travail d'école sur la sécurité des données, l'utilisation de PostgreSQL et l'apprentissage des standards de chiffrement en Python.
+- différence entre chiffrement symétrique et asymétrique ;
+- rôle d'une clé publique ;
+- rôle d'une clé privée ;
+- usage d'un certificat dans une logique ICP ;
+- impact du choix de l'algorithme ;
+- importance des métadonnées pour le déchiffrement ;
+- dépendance entre robustesse cryptographique et qualité des bibliothèques utilisées.

@@ -26,6 +26,8 @@ csv_exports/
 
 # Optional local outputs
 *.log
+encryption_history.json
+keys/
 
 # Cours Naima
 Sécurité des bases de données_M1Data&IA_16_04_NaimaOUBENALI.pptx.pdf

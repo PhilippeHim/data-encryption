@@ -14,6 +14,124 @@ L'objectif n'est pas de fournir un outil de production, mais de comprendre concr
 - le rôle des métadonnées et de l'historique ;
 - les limites réelles d'une implémentation pédagogique.
 
+## Problématique
+
+Le besoin de départ est le suivant : une entreprise manipulant des données sensibles doit pouvoir protéger ses sauvegardes de base de données et ses fichiers de travail avant stockage ou partage.
+
+Dans ce projet, cette problématique a été traduite de façon concrète autour de trois usages :
+- produire une sauvegarde PostgreSQL de la base `cours_securite` ;
+- exporter des données tabulaires en `csv` et manipuler d'autres formats de travail comme `txt` ou `xlsx` ;
+- tester plusieurs méthodes de chiffrement depuis une interface Streamlit afin de comparer leur comportement sur les mêmes fichiers.
+
+La question centrale n'est donc pas seulement "comment chiffrer un fichier ?", mais plutôt :
+- quelle famille de chiffrement est la plus adaptée à des sauvegardes de base de données et à des fichiers métiers ;
+- quels algorithmes restent pertinents aujourd'hui ;
+- quelle solution faut-il retenir en pratique après comparaison.
+
+## Démarche de sélection de la méthode
+
+La méthode suivie dans le projet repose sur un enchaînement simple :
+
+1. Préparer des données réalistes avec le notebook : dump PostgreSQL, exports CSV, fichiers de travail.
+2. Utiliser Streamlit pour appliquer plusieurs algorithmes sur un même type de fichier.
+3. Mesurer et observer les résultats via le temps d'exécution, le succès du déchiffrement et l'historique local.
+4. Comparer les familles de chiffrement selon quatre critères :
+   - niveau de sécurité ;
+   - performance ;
+   - simplicité d'usage ;
+   - adéquation avec le chiffrement de fichiers complets.
+5. Retenir une méthode finale adaptée au besoin réel, et non seulement une méthode "qui fonctionne".
+
+Cette démarche permet de distinguer :
+- les algorithmes présents pour l'apprentissage et la comparaison ;
+- l'algorithme réellement recommandé pour le cas d'usage visé.
+
+## Réponse concrète retenue
+
+L'application permet de tester plusieurs approches :
+- en symétrique : `DES`, `Triple DES`, `AES`, `Twofish` ;
+- en asymétrique : `RSA`, `ECC`, `ICP`.
+
+Cependant, pour le besoin principal du projet, la réponse concrète retenue est la suivante :
+
+- le chiffrement des sauvegardes de base de données et des fichiers métiers repose prioritairement sur `AES` ;
+- les méthodes `RSA`, `ECC` et `ICP` sont conservées pour l'étude comparative, la compréhension du chiffrement asymétrique et les scénarios de protection de clé ;
+- `DES` et `Triple DES` sont présents à titre pédagogique, mais ne constituent pas un choix recommandé ;
+- `Twofish` reste intéressant pour la comparaison, mais `AES` est la solution la plus cohérente ici en termes de robustesse, de compatibilité et de simplicité d'exploitation.
+
+En pratique, la réponse opérationnelle du projet peut se résumer ainsi :
+
+`base PostgreSQL ou fichier de travail -> export/sauvegarde -> chiffrement AES -> stockage du fichier .enc -> déchiffrement contrôlé si besoin`
+
+Autrement dit, Streamlit sert ici de laboratoire de test pour comparer toutes les méthodes, mais la conclusion concrète du projet est qu'un chiffrement symétrique `AES` est le meilleur choix pour protéger les fichiers eux-mêmes.
+
+## Tests réalisés pour choisir la méthode de chiffrement
+
+Le choix de la méthode ne repose pas uniquement sur la réussite du chiffrement. Le projet s'appuie sur une logique de test comparative appliquée aux mêmes fichiers sources.
+
+### Jeu de données de test
+
+Les essais peuvent être menés sur plusieurs types de fichiers produits ou manipulés dans le projet :
+- sauvegardes PostgreSQL au format `dump` ;
+- exports tabulaires au format `csv` ;
+- fichiers texte `txt` ;
+- fichiers bureautiques `xlsx`.
+
+L'intérêt de ce jeu de données est de confronter les algorithmes à des contenus variés :
+- données structurées ;
+- fichiers de tailles différentes ;
+- fichiers métiers proches d'un usage réel.
+
+### Protocole de test
+
+Pour chaque algorithme, le même pipeline est appliqué :
+
+1. sélectionner un fichier source depuis l'interface Streamlit ;
+2. chiffrer ce fichier avec un algorithme donné ;
+3. mesurer le temps d'exécution enregistré par l'application ;
+4. déchiffrer le fichier obtenu ;
+5. vérifier que le contenu restauré reste exploitable et cohérent avec le fichier d'origine ;
+6. consulter l'historique local pour comparer les opérations.
+
+Cette logique permet d'évaluer chaque méthode dans les mêmes conditions d'usage.
+
+### Critères d'évaluation
+
+Le choix final s'appuie sur quatre critères principaux :
+
+- `Sécurité` : résistance générale de l'algorithme et pertinence vis-à-vis des standards actuels ;
+- `Performance` : rapidité du chiffrement et du déchiffrement sur des fichiers complets ;
+- `Simplicité d'exploitation` : facilité de mise en oeuvre, gestion des secrets et risque d'erreur utilisateur ;
+- `Adéquation au besoin` : pertinence pour protéger directement des sauvegardes et des fichiers métiers.
+
+### Lecture des résultats
+
+Les tests comparatifs conduisent à distinguer deux usages :
+
+- les algorithmes symétriques sont les plus adaptés au chiffrement direct de fichiers complets ;
+- les algorithmes asymétriques sont surtout pertinents pour la gestion de clés, les certificats et les scénarios d'échange sécurisé.
+
+Dans le détail :
+
+- `DES` et `Triple DES` permettent d'illustrer l'évolution historique des méthodes, mais ils ne constituent plus un choix satisfaisant pour un besoin moderne ;
+- `RSA`, `ECC` et `ICP` sont très utiles pour comprendre le chiffrement asymétrique, mais ils ne sont pas la réponse la plus simple ni la plus efficace pour chiffrer directement des sauvegardes volumineuses ;
+- `Twofish` offre une comparaison intéressante, mais reste moins standard dans ce projet ;
+- `AES` fournit le meilleur compromis entre sécurité, vitesse, compatibilité et lisibilité pédagogique.
+
+## Justification finale du choix d'AES
+
+Le choix final d'`AES` est retenu pour plusieurs raisons complémentaires :
+
+- c'est l'algorithme symétrique le plus cohérent pour chiffrer directement des fichiers de sauvegarde et des exports ;
+- il offre un très bon niveau de sécurité dans un cadre moderne ;
+- il reste plus simple à exploiter qu'une solution asymétrique pour des fichiers complets ;
+- il s'intègre naturellement dans le pipeline mis en place dans le projet ;
+- il permet de formuler une réponse claire au besoin métier sans complexifier inutilement l'usage.
+
+La conclusion du projet peut donc être formulée ainsi :
+
+`tester plusieurs méthodes pour comprendre -> comparer leurs comportements sur les mêmes fichiers -> retenir AES comme solution concrète de chiffrement des données`
+
 ## Objectifs
 
 - manipuler des dumps PostgreSQL et des exports tabulaires ;
@@ -87,6 +205,7 @@ L'application [streamlit_app.py](./streamlit_app.py) permet de :
 - sélectionner un fichier `.enc` à déchiffrer ;
 - choisir un chiffrement symétrique ou asymétrique ;
 - générer ou charger des clés et certificats ;
+- comparer concrètement plusieurs méthodes de chiffrement sur une même base de test ;
 - suivre des étapes pédagogiques directement dans l'interface ;
 - afficher le temps d'exécution de chaque action ;
 - consulter l'historique local des transactions.
